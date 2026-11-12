@@ -5,6 +5,8 @@ Private Android expense tracker + bill splitter: voice entry, bank SMS auto-impo
 
 Native **Kotlin + Jetpack Compose**. Every expense, split and statement is processed **on the phone**: no server, no cloud, no AI/LLM, no analytics. The app doesn't even request the Android internet permission, so it **cannot** send your data anywhere.
 
+📊 **[How it works, end to end →](docs/ARCHITECTURE.md)**: flowcharts for every component (login, voice, bank SMS, PDF gap check, storage, splits, UI rendering, background schedule, latency, security), each explained in plain words and in technical detail.
+
 ## Features
 | Area | What it does |
 |---|---|
