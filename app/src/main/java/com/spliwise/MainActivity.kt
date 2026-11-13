@@ -29,9 +29,14 @@ class MainActivity : FragmentActivity() {
                 if (p == null) {
                     LoginScreen(container.profiles) { container.profiles.setActive(it.phone); profile = it }
                 } else {
-                    val repo = remember(p.phone) { container.repoFor(p.phone) }
+                    val repo = remember(p.phone) { runCatching { container.repoFor(p.phone) }.getOrNull() }
                     val settings = remember(p.phone) { container.settings(p.phone) }
-                    MainApp(
+                    if (repo == null) {
+                        // The vault key is gone (e.g. data kept after uninstall but the phone's key store was wiped)
+                        com.spliwise.auth.VaultProblem(p, onBack = { profile = null }) {
+                            container.profiles.delete(p); profile = null
+                        }
+                    } else MainApp(
                         repo = repo, settings = settings, profile = p, openReview = openReview,
                         onReviewOpened = { openReview = false },
                         onLock = { profile = null },

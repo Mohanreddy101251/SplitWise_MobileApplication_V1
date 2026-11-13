@@ -64,6 +64,7 @@ import kotlin.math.roundToInt
 private sealed interface Mode {
     data object Pick : Mode
     data object Create : Mode
+    data object Restore : Mode
     data class Pin(val p: Profile) : Mode
 }
 
@@ -88,10 +89,17 @@ fun LoginScreen(pm: ProfileManager, onUnlocked: (Profile) -> Unit) {
             Spacer(Modifier.height(28.dp))
             AnimatedContent(mode, label = "login") { m ->
                 when (m) {
-                    Mode.Pick -> PickProfile(profiles, onPick = { mode = Mode.Pin(it) }, onNew = { mode = Mode.Create })
-                    Mode.Create -> CreateProfile(pm, canCancel = profiles.isNotEmpty(), onCancel = { mode = Mode.Pick }) {
-                        profiles = pm.all(); mode = Mode.Pin(profiles.last())
+                    Mode.Pick -> Column {
+                        PickProfile(profiles, onPick = { mode = Mode.Pin(it) }, onNew = { mode = Mode.Create })
+                        RestoreLink { mode = Mode.Restore }
                     }
+                    Mode.Create -> Column {
+                        CreateProfile(pm, canCancel = profiles.isNotEmpty(), onCancel = { mode = Mode.Pick }) {
+                            profiles = pm.all(); mode = Mode.Pin(profiles.last())
+                        }
+                        RestoreLink { mode = Mode.Restore }
+                    }
+                    Mode.Restore -> RestoreFromBackup(pm, onCancel = { mode = if (profiles.isEmpty()) Mode.Create else Mode.Pick }, onDone = onUnlocked)
                     is Mode.Pin -> PinEntry(pm, m.p, onBack = { mode = Mode.Pick }, onOk = onUnlocked)
                 }
             }
@@ -121,6 +129,13 @@ private fun PickProfile(list: List<Profile>, onPick: (Profile) -> Unit, onNew: (
         Spacer(Modifier.height(8.dp))
         GradientButton("+ Add another number", Modifier.fillMaxWidth(), brush = P.Sunset, onClick = onNew)
     }
+}
+
+@Composable
+private fun RestoreLink(onClick: () -> Unit) {
+    Text("↺ Reinstalled? Restore from backup", color = Color.White, fontWeight = FontWeight.SemiBold,
+        modifier = Modifier.fillMaxWidth().padding(top = 14.dp).clip(RoundedCornerShape(12.dp)).clickable(onClick = onClick).padding(12.dp),
+        textAlign = androidx.compose.ui.text.style.TextAlign.Center)
 }
 
 @Composable

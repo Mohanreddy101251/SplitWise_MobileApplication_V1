@@ -13,8 +13,22 @@ android {
         applicationId = "com.spliwise"
         minSdk = 28
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1"
+        // Real phones only (drops emulator-only x86 libraries; makes the APK much smaller)
+        ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
+    }
+
+    // Release key: path + passwords come from environment variables set by release.ps1 at build time,
+    // so no secret is ever written into this project or committed to Git.
+    val keystorePath = System.getenv("SPLIWISE_KEYSTORE")
+    signingConfigs {
+        if (keystorePath != null) create("release") {
+            storeFile = file(keystorePath)
+            storePassword = System.getenv("SPLIWISE_STORE_PASSWORD")
+            keyAlias = System.getenv("SPLIWISE_KEY_ALIAS") ?: "spliwise"
+            keyPassword = System.getenv("SPLIWISE_KEY_PASSWORD") ?: System.getenv("SPLIWISE_STORE_PASSWORD")
+        }
     }
 
     buildTypes {
@@ -22,7 +36,7 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfig = signingConfigs.getByName("debug") // sideloaded personal build
+            signingConfig = if (keystorePath != null) signingConfigs.getByName("release") else null // unsigned unless release.ps1 is used
         }
     }
     compileOptions {
@@ -61,5 +75,6 @@ dependencies {
     implementation("com.tom-roush:pdfbox-android:2.0.27.0")
 
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303") // real JSON for backup round-trip tests on the PC
 
 }

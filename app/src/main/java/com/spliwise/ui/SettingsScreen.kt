@@ -166,6 +166,9 @@ fun SettingsScreen(
                 Title("Monthly budgets")
                 Budgets(cats) { c, v -> scope.launch { repo.setBudget(c, v) } }
 
+                Title("Backup")
+                BackupCard(repo, s, profile) { info = it }
+
                 Title("Data")
                 SCard {
                     GradientButton("Export all to CSV", Modifier.fillMaxWidth(), brush = P.Lime) { csv.launch("spliwise-${java.time.LocalDate.now()}.csv") }
@@ -186,6 +189,85 @@ fun SettingsScreen(
         confirmButton = { TextButton({ confirmDelete = false; ctx.container.profiles.delete(profile); onLock() }) { Text("Delete forever", color = P.Red) } },
         dismissButton = { TextButton({ confirmDelete = false }) { Text("Cancel") } },
     )
+}
+
+/** Daily encrypted backup to Downloads/SpliWise, protected by a backup password the app never stores. */
+@Composable
+private fun BackupCard(repo: Repo, bank: BankSettings, profile: Profile, onInfo: (String) -> Unit) {
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val b = remember(profile.phone) { ctx.container.backup(profile.phone) }
+    var tick by remember { mutableIntStateOf(0) }
+    val on = remember(tick) { b.isOn }
+    var editing by remember { mutableStateOf(false) }
+    var pw by remember { mutableStateOf("") }
+    var pw2 by remember { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    val fmt = java.time.format.DateTimeFormatter.ofPattern("d MMM, h:mm a")
+
+    fun backupNow() {
+        busy = true
+        scope.launch {
+            val msg = withContext(Dispatchers.IO) {
+                runCatching { com.spliwise.backup.Backups.run(ctx, repo, profile.phone, profile.name, bank, b) }
+                    .getOrElse { "Backup failed: ${it.message}" }
+            }
+            busy = false; tick++; onInfo(msg)
+        }
+    }
+
+    SCard {
+        if (on && !editing) {
+            Text("✅ Daily backup is on", fontWeight = FontWeight.Bold)
+            Text("Saved to Downloads/SpliWise, encrypted with your backup password. The last 7 days are kept.", color = P.Sub, fontSize = 12.sp)
+            val last = remember(tick) { b.lastBackup }
+            Text(
+                if (last == 0L) "No backup yet" else "Last backup: " +
+                    java.time.Instant.ofEpochMilli(last).atZone(java.time.ZoneId.systemDefault()).format(fmt),
+                fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp),
+            )
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                GradientButton(if (busy) "Saving…" else "Back up now", Modifier.weight(1f), brush = P.Ocean, enabled = !busy) { backupNow() }
+                GradientButton("Change password", Modifier.weight(1f), brush = P.Grape) { editing = true }
+            }
+        } else {
+            Text("Keep your data safe if the app is uninstalled", fontWeight = FontWeight.Bold)
+            Text("A daily encrypted copy is saved in Downloads/SpliWise. After reinstalling, choose “Restore from backup” on the login screen; bank SMS since your last entry are then picked up automatically.",
+                color = P.Sub, fontSize = 12.sp)
+            Spacer(Modifier.height(8.dp))
+            OutlinedTextField(pw, { pw = it }, label = { Text("Backup password (6+ characters)") }, singleLine = true,
+                visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
+                modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+            OutlinedTextField(pw2, { pw2 = it }, label = { Text("Repeat password") }, singleLine = true,
+                visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
+                modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+            val err = when {
+                pw.isNotEmpty() && pw.length < com.spliwise.backup.BackupCrypto.MIN_PASSWORD -> "At least 6 characters"
+                pw2.isNotEmpty() && pw != pw2 -> "Passwords don't match"
+                else -> null
+            }
+            err?.let { Text(it, color = P.Red, fontSize = 12.sp) }
+            Text("⚠ If you forget this password the backup can't be opened. The app never stores the password itself.",
+                color = P.Orange, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (editing) GradientButton("Cancel", Modifier.weight(1f), brush = P.Grape) { editing = false; pw = ""; pw2 = "" }
+                GradientButton(if (busy) "Saving…" else "Turn on backup", Modifier.weight(2f), brush = P.Ocean,
+                    enabled = !busy && err == null && pw.length >= com.spliwise.backup.BackupCrypto.MIN_PASSWORD && pw == pw2) {
+                    val chars = pw.toCharArray(); pw = ""; pw2 = ""
+                    busy = true
+                    scope.launch {
+                        withContext(Dispatchers.Default) { b.setPassword(chars) }
+                        editing = false; busy = false; tick++
+                        backupNow()
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable

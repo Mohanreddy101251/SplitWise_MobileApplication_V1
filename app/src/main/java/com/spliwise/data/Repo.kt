@@ -1,5 +1,6 @@
 package com.spliwise.data
 
+import androidx.room.withTransaction
 import com.spliwise.classify.Categories
 import com.spliwise.classify.Categorizer
 import com.spliwise.ingest.Deduper
@@ -31,6 +32,31 @@ class Repo(val db: SpliDb) {
             db.cat().upsert(Category(c.id, c.name, c.emoji, c.color, have[c.id]?.budget ?: 0, i)) // keeps budgets
         }
     }
+
+    /** Everything this profile owns, for the encrypted backup file. */
+    suspend fun snapshot(phone: String, name: String, banks: Map<String, com.spliwise.backup.BankPref>) = com.spliwise.backup.Snapshot(
+        phone = phone, name = name, createdAt = System.currentTimeMillis(),
+        txns = t.all(),
+        budgets = db.cat().list().filter { it.budget > 0 }.associate { it.id to it.budget },
+        rules = db.rule().all(), people = db.people().list(),
+        splits = db.split().splitsOnce(), shares = db.split().sharesOnce(), settlements = db.split().settlementsOnce(),
+        ignored = db.ignored().keys(), banks = banks,
+    )
+
+    /** Loads a backup into this (new, empty) profile in one transaction. */
+    suspend fun restore(s: com.spliwise.backup.Snapshot) = db.withTransaction {
+        ensureCategories()
+        db.cat().list().forEach { c -> s.budgets[c.id]?.let { db.cat().upsert(c.copy(budget = it)) } }
+        t.insertAll(s.txns)
+        s.rules.forEach { db.rule().upsert(it) }
+        db.people().insertAll(s.people)
+        db.split().insertSplits(s.splits)
+        db.split().insertSharesReplace(s.shares)
+        db.split().insertSettlements(s.settlements)
+        s.ignored.forEach { db.ignored().add(Ignored(it)) }
+    }
+
+    suspend fun lastTxnTs(): Long? = t.lastTs()
 
     suspend fun ignoredKeys(): Set<String> = db.ignored().keys().toSet()
     suspend fun ignore(key: String) = db.ignored().add(Ignored(key))

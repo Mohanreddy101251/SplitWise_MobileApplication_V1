@@ -31,6 +31,11 @@ Native **Kotlin + Jetpack Compose**. Every expense, split and statement is proce
 - PDF passwords are held only while the file is being opened. The PDF bytes stay in memory and are wiped when you leave the screen.
 - Android cloud backup is turned off (`allowBackup=false`).
 
+## Backup & reinstall
+- **Daily encrypted backup** to `Downloads/SpliWise` (`SpliWise-backup-<last4>-<date>.swb`, the last 7 days kept). It's encrypted with AES-256-GCM using a key derived from your **backup password** (PBKDF2, 200,000 rounds). The password itself is never stored.
+- **Uninstall:** Android shows a **"Keep app data"** checkbox (`hasFragileUserData`), so you can remove only the app. Kept data reopens only with a build signed by the same key.
+- **Restore:** on the login screen, tap **Restore from backup**, pick the `.swb` file, enter the password and set a new PIN. All data returns, and bank SMS are re-read from one day before your last saved entry (duplicates merge).
+
 ## Honest limits
 - Banks don't send custom-date statements by SMS. Mini statements (SBI `MSTMT`, HDFC `TXN`, Canara `MINI`) show only the last ~5 transactions. The live and hourly SMS import is the main daily source; the **Statement check** finds anything missed.
 - Bank SMS and PDF layouts change. The parsers are tested against realistic formats (`app/src/test`).
@@ -45,6 +50,13 @@ Needs JDK 17, Android SDK 35 and Gradle 8.11.1. The scripts assume these are in 
 .\install.ps1
 ```
 Create `local.properties` with `sdk.dir=<path to your Android SDK>` (it's git-ignored).
+
+**Shareable release APK** (smaller, optimised, signed with your own key):
+```powershell
+.\make-key.ps1   # once: creates E:\SpliWise-keys\spliwise-release.jks (outside the repo, never committed)
+.\release.ps1    # asks for the key password, checks it, builds + verifies -> dist\SpliWise-<version>.apk
+```
+Keep the `.jks` file and its password safe: every future update must be signed with the same key.
 
 ## Project layout
 ```

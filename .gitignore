@@ -9,3 +9,7 @@ captures/
 *.apk
 *.log
 screenshots/
+dist/
+*.jks
+*.keystore
+release.log

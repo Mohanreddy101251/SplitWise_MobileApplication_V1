@@ -35,8 +35,9 @@ class AppContainer(private val app: Application) {
     }
 
     /** Background jobs (SMS, nightly import) write into the last unlocked profile. */
-    fun activeRepo(): Repo? = profiles.active()?.let { repoFor(it.phone) }
+    fun activeRepo(): Repo? = profiles.active()?.let { runCatching { repoFor(it.phone) }.getOrNull() }
     fun settings(phone: String) = BankSettings(app, phone)
+    fun backup(phone: String) = com.spliwise.backup.BackupSettings(app, phone)
     fun activeSettings(): BankSettings? = profiles.active()?.let { settings(it.phone) }
 }
 

@@ -33,4 +33,11 @@ class BankSettings(ctx: Context, phone: String) {
         set(v) = p.edit().putLong("sms_scan", v).apply()
 
     val enabledBanks get() = Banks.all.filter { enabled(it) }
+
+    /** Saved inside the backup so a restored profile reads the same banks. */
+    fun export() = Banks.all.associate { it.id to com.spliwise.backup.BankPref(enabled(it), requestNumber(it), requestText(it)) }
+
+    fun import(prefs: Map<String, com.spliwise.backup.BankPref>) = prefs.forEach { (id, p) ->
+        Banks.byId(id)?.let { b -> setEnabled(b, p.on); setRequest(b, p.number, p.text) }
+    }
 }

@@ -23,6 +23,8 @@ interface TxnDao {
     @Query("UPDATE txn SET category = :cat, needsReview = 0 WHERE merchant = :merchant AND needsReview = 1")
     suspend fun recategorizeMerchant(merchant: String, cat: String)
     @Query("SELECT * FROM txn ORDER BY ts") suspend fun all(): List<Txn>
+    @Query("SELECT MAX(ts) FROM txn") suspend fun lastTs(): Long?
+    @Insert(onConflict = androidx.room.OnConflictStrategy.REPLACE) suspend fun insertAll(list: List<Txn>)
 }
 
 @Dao
@@ -52,6 +54,7 @@ interface PersonDao {
     @Insert suspend fun insert(p: Person): Long
     @Update suspend fun update(p: Person)
     @Delete suspend fun delete(p: Person)
+    @Insert(onConflict = androidx.room.OnConflictStrategy.REPLACE) suspend fun insertAll(list: List<Person>)
 }
 
 @Dao
@@ -83,4 +86,12 @@ abstract class SplitDao {
     @Query("SELECT * FROM share") abstract fun shares(): Flow<List<Share>>
     @Query("SELECT * FROM settlement ORDER BY ts DESC") abstract fun settlements(): Flow<List<Settlement>>
     @Insert abstract suspend fun settle(s: Settlement)
+
+    // one-shot reads/writes used by backup & restore
+    @Query("SELECT * FROM split") abstract suspend fun splitsOnce(): List<Split>
+    @Query("SELECT * FROM share") abstract suspend fun sharesOnce(): List<Share>
+    @Query("SELECT * FROM settlement") abstract suspend fun settlementsOnce(): List<Settlement>
+    @Insert(onConflict = androidx.room.OnConflictStrategy.REPLACE) abstract suspend fun insertSplits(list: List<Split>)
+    @Insert(onConflict = androidx.room.OnConflictStrategy.REPLACE) abstract suspend fun insertSharesReplace(list: List<Share>)
+    @Insert(onConflict = androidx.room.OnConflictStrategy.REPLACE) abstract suspend fun insertSettlements(list: List<Settlement>)
 }
